@@ -1,0 +1,7 @@
+Flask
+yfinance
+pandas
+requests
+requests_html
+lxml_html_clean
+yahoo_fin

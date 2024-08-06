@@ -1,0 +1,164 @@
+meu_ambiente_virtual\Scripts\activate<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stock Performance</title>
+    <style>
+        .container {
+            display: flex;
+            flex-direction: row;
+            width: 100%;
+            gap: 20px;
+            justify-content: center;
+        }
+
+        .gainers-container,
+        .losers-container {
+            flex: 1;
+            padding: 10px;
+            width: 100%;
+        }
+
+        .node {
+            border: 1px solid #fff;
+            box-sizing: border-box;
+            overflow: hidden;
+            width: 100%;
+        }
+
+        .node text {
+            pointer-events: none;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Stock Performance</h1>
+
+    <div class="container">
+        <div id="gainers-container">
+            <h2>Day Gainers</h2>
+        </div>
+
+        <div id="losers-container">
+            <h2>Day Losers</h2>
+        </div>
+    </div>
+
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script>
+        function fetchData() {
+            Promise.all([
+                fetch('/day_gainers').then(response => response.json()),
+                fetch('/day_losers').then(response => response.json())
+            ]).then(([gainersData, losersData]) => {
+                updateTreemap(gainersData, 'gainers-container', 'green');
+                updateTreemap(losersData, 'losers-container', 'red');
+            }).catch(error => {
+                console.error('Error fetching data:', error);
+            });
+        }
+
+    
+        function updateTreemap(data, containerId, color) {
+            const container = document.getElementById(containerId);
+            container.innerHTML = '';  // Clear previous data
+
+            // Create hierarchical data structure
+            const formattedData = {
+                name: "root",
+                children: data.map(stock => ({
+                    name: stock.Name,
+                    value: stock.Volume,
+                    change: stock.Change,
+                    price: stock['Price (Intraday)'],
+                    symbol: stock.Symbol
+                }))
+            };
+
+
+            const width = 600;
+            const height = 400;
+
+            const svg = d3.select(container)
+                .append("svg")
+                .attr("width", width)
+                .attr("height", height);
+
+            // Create a Treemap Layout
+            const root = d3.hierarchy(formattedData)
+                .sum(d => d.value)
+                .sort((a, b) => b.value - a.value);
+
+            const treemap = d3.treemap()
+                .size([width, height])
+                .padding(1);
+
+            treemap(root);
+
+            // Calculate total volume for scaling
+            const volumeExtent = d3.extent(data, d => d.Volume);
+            const colorScale = d3.scaleLinear()
+                .domain([volumeExtent[0], volumeExtent[1]])
+                .range(color === 'green' ? ["#ccffcc", "#006600"] : ["#ffcccc", "#990000"]);
+
+            // Draw the Treemap
+            const nodes = svg.selectAll(".node")
+                .data(root.leaves())
+                .enter()
+                .append("g")
+                .attr("class", "node")
+                .attr("transform", d => `translate(${d.x0},${d.y0})`)
+
+            nodes.append("a")
+                .attr("href", d => `/get_data/${d.data.symbol}`)
+                .attr("target", "_blank")
+                .append("rect")
+                .attr("width", d => d.x1 - d.x0)
+                .attr("height", d => d.y1 - d.y0)
+                .attr("fill", d => colorScale(d.data.value));
+
+            nodes.select("a")
+                .append("text")
+                .attr("dx", 4)
+                .attr("dy", 14)
+                .text(d => d.data.name);
+
+            nodes.select("a")
+                .append("text")
+                .attr("dx", 4)
+                .attr("dy", 30)
+                .text(d => `Volume: ${d.data.value}`);
+
+            nodes.select("a")
+                .append("text")
+                .attr("dx", 4)
+                .attr("dy", 46)
+                .text(d => `Change: ${d.data.change}`);
+
+            nodes.select("a")
+                .append("text")
+                .attr("dx", 4)
+                .attr("dy", 62)
+                .text(d => `Price: ${d.data.price}`);
+
+            nodes.select("a")
+                .append("text")
+                .attr("dx", 4)
+                .attr("dy", 78)
+                .text(d => `Symbol: ${d.data.symbol}`);
+
+        }
+
+
+        fetchData();
+        setInterval(fetchData, 5 * 60 * 1000);
+
+
+
+    </script>
+</body>
+
+</html>
